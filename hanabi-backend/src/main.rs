@@ -27,7 +27,6 @@ struct ServerState {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Bind the TCP listener to an address and start listening for connections
     let addr = "127.0.0.1:8080";
     let listener = TcpListener::bind(addr).await?;
     println!("Listening on: {}", addr);

@@ -1,11 +1,10 @@
-use std::sync::Arc;
-
 use futures::{sink::SinkExt, stream::StreamExt};
 use mpsc::{channel, Sender};
 use prost::Message as ProstMessage;
 use tokio::sync::{mpsc, Mutex};
 
 use tokio_tungstenite::tungstenite::protocol::Message;
+use tokio_tungstenite::tungstenite::Bytes;
 use tokio_tungstenite::{accept_async, tungstenite::Error};
 use uuid::Uuid;
 
@@ -21,7 +20,6 @@ mod generated {
 }
 
 use crate::client::generated::requests::{Request, RequestType};
-use generated::requests;
 
 // Function to handle the WebSocket connection
 pub(crate) async fn handle_connection(
@@ -53,9 +51,9 @@ async fn process_connection(
             match msg {
                 TaskMessage::UpdateGameState(game_state_perspective) => {
                     write
-                        .send(Message::Text(
-                            format!("{:?}", game_state_perspective).into(),
-                        ))
+                        .send(Message::Binary(Bytes::from(
+                            game_state_perspective.to_proto().encode_to_vec(),
+                        )))
                         .await
                         .unwrap();
                 }
@@ -94,6 +92,9 @@ async fn process_connection(
                     }
                     RequestType::GiveHint => {
                         println!("Received GiveHint request");
+                    }
+                    RequestType::UpdateGame => {
+                        unreachable!()
                     }
                 }
             }

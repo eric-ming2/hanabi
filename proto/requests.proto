@@ -2,11 +2,14 @@ syntax = "proto3";
 
 package requests;
 
+option go_package = "github.com/eric-ming2/hanabi/hanabi-frontend/generated";
+
 enum RequestType {
     START_GAME = 0;
     DISCARD_CARD = 1;
     PLAY_CARD = 2;
     GIVE_HINT = 3;
+    UPDATE_GAME = 4;
 }
 
 message Request {
@@ -16,6 +19,7 @@ message Request {
         DiscardCardRequest discard_card = 3;
         PlayCardRequest play_card = 4;
         GiveHintRequest give_hint = 5;
+        UpdateGameRequest update_game = 6;
     }
 }
 
@@ -29,4 +33,33 @@ message PlayCardRequest {
 message GiveHintRequest {
     int32 card_index = 1;
     int32 player_index = 2;
+}
+enum CardColor {
+    White = 0;
+    Yellow = 1;
+    Green = 2;
+    Blue = 3;
+    Red = 4;
+}
+message UnknownCard {
+    optional int32 num = 1;
+    optional CardColor color = 2;
+}
+message Card {
+    int32 num = 1;
+    CardColor color = 2;
+}
+message PlayerCards {
+    repeated Card cards = 1;
+    repeated UnknownCard unknown_cards = 2;
+}
+message UpdateGameRequest {
+    repeated UnknownCard my_hand = 1;
+    repeated PlayerCards other_hands = 2;
+    int32 turn = 3;
+    repeated Card deck = 4;
+    repeated Card discard_pile = 5;
+    int32 hints = 6;
+    int32 bombs = 7;
+    map<int32, int32> fireworks = 8; // key is CardColor, value is 0-5
 }
