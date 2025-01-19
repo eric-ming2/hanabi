@@ -3,7 +3,7 @@ use rand::seq::SliceRandom;
 use rand::thread_rng;
 use std::collections::HashMap;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GameState {
     players: Vec<PlayerCards>,
     turn: u8,
@@ -169,7 +169,7 @@ pub struct GameStatePerspective {
 }
 
 impl GameStatePerspective {
-    fn from(game_state: GameState, player_index: u8) -> Self {
+    pub fn from_state(game_state: GameState, player_index: u8) -> Self {
         let my_cards = game_state
             .players
             .get(player_index as usize)

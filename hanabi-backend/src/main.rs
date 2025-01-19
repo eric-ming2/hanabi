@@ -1,15 +1,16 @@
-mod models;
 mod client;
+mod models;
 
-use models::game_state::GameState;
+use models::game_state::{GameState, GameStatePerspective};
 use models::messages::TaskMessage;
+use tokio_tungstenite::tungstenite::handshake::server;
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use mpsc::{channel, Sender};
 use tokio::net::TcpListener;
 use tokio::sync::{mpsc, Mutex};
-use mpsc::{channel, Sender};
 
 #[derive(Debug)]
 enum State {
@@ -20,7 +21,7 @@ enum State {
 #[derive(Debug)]
 struct ServerState {
     state: State,
-    clients:HashMap<String, Sender<(String, TaskMessage)>>,
+    clients: HashMap<String, (u8, Sender<(String, TaskMessage)>)>,
     game_state: Option<GameState>,
 }
 
@@ -44,7 +45,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Main thread received from {}: {:?}", id, msg);
             match msg {
                 TaskMessage::InitClient(id, tx) => {
-                    server_state.clients.insert(id, tx);
+                    server_state
+                        .clients
+                        .insert(id, (server_state.clients.len() as u8, tx));
                     println!("size: {}", server_state.clients.len());
                 }
                 TaskMessage::CloseClient(id) => {
@@ -55,8 +58,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         server_state.state = State::Game;
                         server_state.game_state =
                             Some(GameState::new(server_state.clients.len() as u8));
-                        println!("Server state: {:?}", server_state)
-                        // TODO: Send updated game state to every client
+                        for (_, (player_index, tx)) in &server_state.clients {
+                            tx.send((
+                                String::from("main"),
+                                TaskMessage::UpdateGameState(GameStatePerspective::from_state(
+                                    // TODO: Can I pass a reference instead of cloning here?
+                                    server_state.game_state.clone().unwrap(),
+                                    *player_index,
+                                )),
+                            ))
+                            .await
+                            .unwrap();
+                        }
                     } else {
                         println!(
                             "Need 3 players to start the game. Tried to start with {}",
