@@ -14,7 +14,7 @@ pub struct GameState {
     fireworks: HashMap<CardColor, u8>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PlayerCards {
     cards: [(Card, UnknownCard); 4],
 }
@@ -153,5 +153,48 @@ impl GameState {
         let mut rng = thread_rng();
         deck.shuffle(&mut rng);
         deck
+    }
+}
+
+#[derive(Debug)]
+pub struct GameStatePerspective {
+    my_hand: [UnknownCard; 4],
+    other_hands: Vec<PlayerCards>,
+    turn: u8,
+    deck: Vec<Card>,
+    discard_pile: Vec<Card>,
+    hints: u8,
+    bombs: u8,
+    fireworks: HashMap<CardColor, u8>,
+}
+
+impl GameStatePerspective {
+    fn from(game_state: GameState, player_index: u8) -> Self {
+        let my_cards = game_state
+            .players
+            .get(player_index as usize)
+            .unwrap()
+            .cards
+            .clone();
+        let my_hand = [
+            my_cards[0].1.clone(),
+            my_cards[1].1.clone(),
+            my_cards[2].1.clone(),
+            my_cards[3].1.clone(),
+        ];
+        let mut other_hands = game_state.players.clone();
+        other_hands.remove(player_index as usize);
+        other_hands.rotate_left(player_index as usize);
+
+        GameStatePerspective {
+            my_hand,
+            other_hands,
+            turn: game_state.turn,
+            deck: game_state.deck,
+            discard_pile: game_state.discard_pile,
+            hints: game_state.hints,
+            bombs: game_state.bombs,
+            fireworks: game_state.fireworks,
+        }
     }
 }
