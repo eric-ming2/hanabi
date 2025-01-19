@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package requests;
+
+enum RequestType {
+    START_GAME = 0;
+    DISCARD_CARD = 1;
+    PLAY_CARD = 2;
+    GIVE_HINT = 3;
+}
+
+message Request {
+    RequestType request_type = 1;
+    oneof request {
+        StartGameRequest start_game = 2;
+        DiscardCardRequest discard_card = 3;
+        PlayCardRequest play_card = 4;
+        GiveHintRequest give_hint = 5;
+    }
+}
+
+message StartGameRequest { }
+message DiscardCardRequest {
+    int32 card_index = 1;
+}
+message PlayCardRequest {
+    int32 card_index = 1;
+}
+message GiveHintRequest {
+    int32 card_index = 1;
+    int32 player_index = 2;
+}

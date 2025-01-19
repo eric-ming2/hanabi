@@ -2,12 +2,26 @@ use std::sync::Arc;
 
 use futures::{sink::SinkExt, stream::StreamExt};
 use mpsc::{channel, Sender};
+use prost::Message as ProstMessage;
 use tokio::sync::{mpsc, Mutex};
+
 use tokio_tungstenite::tungstenite::protocol::Message;
 use tokio_tungstenite::{accept_async, tungstenite::Error};
 use uuid::Uuid;
 
 use crate::models::messages::TaskMessage;
+
+mod generated {
+    pub mod requests {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/src/generated/requests.rs"
+        ));
+    }
+}
+
+use crate::client::generated::requests::{Request, RequestType};
+use generated::requests;
 
 // Function to handle the WebSocket connection
 pub(crate) async fn handle_connection(
@@ -61,18 +75,25 @@ async fn process_connection(
     // Process messages from the client
     while let Some(message) = read.next().await {
         match message {
-            Ok(Message::Text(msg)) => {
-                println!("Received message: {}", msg);
-                let msg_string = msg.as_str();
-                match msg_string {
-                    "StartGame" => {
+            Ok(Message::Binary(msg_bytes)) => {
+                // TODO: Error handle better here
+                let request = Request::decode(msg_bytes.as_ref()).unwrap();
+                match RequestType::try_from(request.request_type).unwrap() {
+                    RequestType::StartGame => {
+                        println!("Received StartGame request");
                         main_tx
                             .send((id.clone(), TaskMessage::StartGame))
                             .await
                             .unwrap();
                     }
-                    _ => {
-                        println!("Invalid message received");
+                    RequestType::DiscardCard => {
+                        println!("Received DiscardCard request");
+                    }
+                    RequestType::PlayCard => {
+                        println!("Received PlayCard request");
+                    }
+                    RequestType::GiveHint => {
+                        println!("Received GiveHint request");
                     }
                 }
             }
