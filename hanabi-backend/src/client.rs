@@ -6,7 +6,6 @@ use tokio::sync::{mpsc, Mutex};
 use tokio_tungstenite::tungstenite::protocol::Message;
 use tokio_tungstenite::tungstenite::Bytes;
 use tokio_tungstenite::{accept_async, tungstenite::Error};
-use uuid::Uuid;
 
 use crate::models::messages::TaskMessage;
 
@@ -19,6 +18,7 @@ mod generated {
     }
 }
 
+use crate::client::generated::requests::request::Request::InitConnection;
 use crate::client::generated::requests::{Request, RequestType};
 
 // Function to handle the WebSocket connection
@@ -46,6 +46,9 @@ async fn process_connection(
 
     let (tx, mut rx) = channel::<(String, TaskMessage)>(100);
 
+    // TODO: This code smells
+    let mut id = "uninitialized".to_string();
+
     tokio::spawn(async move {
         while let Some((_, msg)) = rx.recv().await {
             match msg {
@@ -64,12 +67,6 @@ async fn process_connection(
         }
     });
 
-    let id = Uuid::new_v4().to_string();
-    main_tx
-        .send((id.clone(), TaskMessage::InitClient(id.clone(), tx)))
-        .await
-        .unwrap();
-
     // Process messages from the client
     while let Some(message) = read.next().await {
         match message {
@@ -77,6 +74,24 @@ async fn process_connection(
                 // TODO: Error handle better here
                 let request = Request::decode(msg_bytes.as_ref()).unwrap();
                 match RequestType::try_from(request.request_type).unwrap() {
+                    RequestType::InitConnection => {
+                        println!("Received InitConnection request");
+                        match request.request {
+                            Some(InitConnection(init_connection)) => {
+                                id = init_connection.id.clone();
+                                main_tx
+                                    .send((
+                                        id.clone(),
+                                        TaskMessage::InitClient(id.clone(), init_connection.username.clone(), tx.clone()),
+                                    ))
+                                    .await
+                                    .unwrap();
+                            }
+                            _ => {
+                                unreachable!();
+                            }
+                        }
+                    }
                     RequestType::StartGame => {
                         println!("Received StartGame request");
                         main_tx
@@ -92,9 +107,6 @@ async fn process_connection(
                     }
                     RequestType::GiveHint => {
                         println!("Received GiveHint request");
-                    }
-                    RequestType::UpdateGame => {
-                        unreachable!()
                     }
                 }
             }

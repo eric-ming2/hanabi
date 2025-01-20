@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package responses;
+
+option go_package = "github.com/eric-ming2/hanabi/hanabi-frontend/generated";
+
+enum ResponseType {
+  UPDATE_GAME = 0;
+}
+
+message Response {
+  ResponseType response_type = 1;
+  oneof response {
+    UpdateGameResponse update_game = 6;
+  }
+}
+
+enum CardColor {
+  White = 0;
+  Yellow = 1;
+  Green = 2;
+  Blue = 3;
+  Red = 4;
+}
+message UnknownCard {
+  optional int32 num = 1;
+  optional CardColor color = 2;
+}
+message Card {
+  int32 num = 1;
+  CardColor color = 2;
+}
+message PlayerCards {
+  repeated Card cards = 1;
+  repeated UnknownCard unknown_cards = 2;
+}
+message UpdateGameResponse {
+  repeated UnknownCard my_hand = 1;
+  repeated PlayerCards other_hands = 2;
+  int32 turn = 3;
+  repeated Card deck = 4;
+  repeated Card discard_pile = 5;
+  int32 hints = 6;
+  int32 bombs = 7;
+  map<int32, int32> fireworks = 8; // key is CardColor, value is 0-5
+}

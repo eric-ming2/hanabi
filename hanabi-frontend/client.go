@@ -8,7 +8,20 @@ import (
 	"net/url"
 )
 
-func connect() {
+func clientWorker(workerReqChan chan WorkerRequest, workerResChan chan WorkerResponse) {
+	for req := range workerReqChan {
+		switch req.Type {
+		case ConnectRequest:
+			payload, ok := req.Payload.(ConnectRequestPayload)
+			if !ok {
+				log.Fatalf("Failed to cast payload to ConnectRequestPayload")
+			}
+			connect(workerResChan, payload)
+		}
+	}
+}
+
+func connect(workerResChan chan WorkerResponse, payload ConnectRequestPayload) {
 	serverURL := url.URL{
 		Scheme: "ws",
 		Host:   "127.0.0.1:8080",
@@ -24,40 +37,45 @@ func connect() {
 	defer conn.Close()
 	log.Println("Connected to WebSocket server")
 
-	binaryData, err := proto.Marshal(createStartGameRequest())
+	initConnectionReq, err := proto.Marshal(createInitConnectionRequest(payload))
+	if err != nil {
+		log.Fatalf("Failed to marshal proto", err)
+	}
+	err = conn.WriteMessage(websocket.BinaryMessage, initConnectionReq)
+	if err != nil {
+		log.Fatalf("Failed to write init connection message", err)
+	}
+
+	startGameReq, err := proto.Marshal(createStartGameRequest())
 	if err != nil {
 		log.Fatalf("Failed to marshal proto", err)
 	}
 
-	err = conn.WriteMessage(websocket.BinaryMessage, binaryData)
+	// TODO: Move into sender fn, send on button click
+	err = conn.WriteMessage(websocket.BinaryMessage, startGameReq)
+	if err != nil {
+		log.Fatalf("Failed to write start game message", err)
+	}
 
-	for {
-		messageType, message, err := conn.ReadMessage()
-		if err != nil {
-			log.Printf("Error reading message: %v", err)
-			break
-		}
-		// Handle different message types
-		switch messageType {
-		case websocket.TextMessage:
-			log.Printf("Received text message: %s", message)
-		case websocket.BinaryMessage:
-			// TODO: Your naming sucks, this should be Response, not Request
-			var request generated.Request
-			err := proto.Unmarshal(message, &request)
-			if err != nil {
-				log.Printf("Unable to unmarshal proto: %v", err)
-				return
-			}
-			switch request.RequestType {
-			case generated.RequestType_UPDATE_GAME:
-				log.Printf("Received UPDATE_GAME message: %v", request.GetUpdateGame())
-			}
-		default:
-			log.Printf("Received unknown message type (%d): %x", messageType, message)
-		}
+	go listen(conn, workerResChan)
+
+	// TODO: Block with sender fn, handling StartGame, etc
+	select {}
+}
+
+func createInitConnectionRequest(payload ConnectRequestPayload) *generated.Request {
+	initConnectionRequest := &generated.InitConnectionRequest{
+		Id:       payload.Id,
+		Username: payload.Username,
+	}
+	return &generated.Request{
+		RequestType: generated.RequestType_INIT_CONNECTION,
+		Request: &generated.Request_InitConnection{
+			InitConnection: initConnectionRequest,
+		},
 	}
 }
+
 func createStartGameRequest() *generated.Request {
 	startGameRequest := &generated.StartGameRequest{}
 	return &generated.Request{

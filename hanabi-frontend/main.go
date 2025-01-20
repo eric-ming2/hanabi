@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/google/uuid"
 	"image"
 	"image/color"
 
@@ -12,11 +13,42 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
+type WorkerRequestType int
+
+const (
+	ConnectRequest WorkerRequestType = iota
+)
+
+type WorkerRequest struct {
+	Type    WorkerRequestType
+	Payload interface{}
+}
+
+type ConnectRequestPayload struct {
+	Id       string
+	Username string
+}
+
+type WorkerResponseType int
+
+const (
+	ConnectFailed WorkerResponseType = iota
+	UpdateGameState
+)
+
+type WorkerResponse struct {
+	Type    WorkerResponseType
+	Payload interface{}
+}
+
 type Game struct {
-	inputText      string
+	username       string
+	id             string
 	cursorBlink    bool
 	connectPressed bool
 	tickCount      int
+	workerReqChan  chan WorkerRequest
+	workerResChan  chan WorkerResponse
 }
 
 const connectButtonX = 50
@@ -28,13 +60,13 @@ func (g *Game) Update() error {
 	// Handle input characters
 	for _, char := range ebiten.InputChars() {
 		if char >= 32 && char <= 126 { // Printable ASCII characters
-			g.inputText += string(char)
+			g.username += string(char)
 		}
 	}
 
 	// Handle backspace
-	if ebiten.IsKeyPressed(ebiten.KeyBackspace) && len(g.inputText) > 0 {
-		g.inputText = g.inputText[:len(g.inputText)-1]
+	if ebiten.IsKeyPressed(ebiten.KeyBackspace) && len(g.username) > 0 {
+		g.username = g.username[:len(g.username)-1]
 	}
 
 	// Update cursor blink state
@@ -47,7 +79,16 @@ func (g *Game) Update() error {
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 		x, y := ebiten.CursorPosition()
 		if x >= connectButtonX && x <= connectButtonX+connectButtonW && y >= connectButtonY && y <= connectButtonY+connectButtonH {
-			g.connectPressed = true
+			if !g.connectPressed {
+				g.connectPressed = true
+				g.workerReqChan <- WorkerRequest{
+					Type: ConnectRequest,
+					Payload: ConnectRequestPayload{
+						Id:       uuid.New().String(),
+						Username: g.username,
+					},
+				}
+			}
 			fmt.Println("Button clicked!")
 		}
 	}
@@ -63,11 +104,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	ebitenutil.DrawRect(screen, float64(boxX+2), float64(boxY+2), float64(boxW-4), float64(boxH-4), color.Black)
 
 	// Draw input text
-	drawText(screen, g.inputText, boxX+10, boxY+30, color.White)
+	drawText(screen, g.username, boxX+10, boxY+30, color.White)
 
 	// Draw blinking cursor
 	if g.cursorBlink {
-		cursorX := boxX + 10 + len(g.inputText)*7 // Adjust based on font size
+		cursorX := boxX + 10 + len(g.username)*7 // Adjust based on font size
 		ebitenutil.DrawRect(screen, float64(cursorX), float64(boxY+10), 2, float64(boxH-20), color.White)
 	}
 	// Draw connect button
@@ -93,9 +134,15 @@ func drawText(dst *ebiten.Image, text string, x, y int, clr color.Color) {
 }
 
 func main() {
+	workerReqChan := make(chan WorkerRequest)
+	workerResChan := make(chan WorkerResponse)
+	game := &Game{
+		workerReqChan: workerReqChan,
+		workerResChan: workerResChan,
+	}
+	go clientWorker(workerReqChan, workerResChan)
 	ebiten.SetWindowSize(960, 540)
 	ebiten.SetWindowTitle("Hanabi")
-	game := &Game{}
 	if err := ebiten.RunGame(game); err != nil {
 		fmt.Println(err)
 	}

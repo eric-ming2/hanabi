@@ -3,7 +3,6 @@ mod models;
 
 use models::game_state::{GameState, GameStatePerspective};
 use models::messages::TaskMessage;
-use tokio_tungstenite::tungstenite::handshake::server;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -19,9 +18,16 @@ enum State {
 }
 
 #[derive(Debug)]
+struct ClientInfo {
+    player_index: u8,
+    username: String,
+    tx: Sender<(String, TaskMessage)>,
+}
+
+#[derive(Debug)]
 struct ServerState {
     state: State,
-    clients: HashMap<String, (u8, Sender<(String, TaskMessage)>)>,
+    clients: HashMap<String, ClientInfo>,
     game_state: Option<GameState>,
 }
 
@@ -43,10 +49,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         while let Some((id, msg)) = main_rx.recv().await {
             println!("Main thread received from {}: {:?}", id, msg);
             match msg {
-                TaskMessage::InitClient(id, tx) => {
+                TaskMessage::InitClient(id, username, tx) => {
                     server_state
                         .clients
-                        .insert(id, (server_state.clients.len() as u8, tx));
+                        .insert(id, ClientInfo {
+                            player_index: server_state.clients.len() as u8,
+                            username,
+                            tx,
+                        });
                     println!("size: {}", server_state.clients.len());
                 }
                 TaskMessage::CloseClient(id) => {
@@ -57,13 +67,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         server_state.state = State::Game;
                         server_state.game_state =
                             Some(GameState::new(server_state.clients.len() as u8));
-                        for (_, (player_index, tx)) in &server_state.clients {
-                            tx.send((
+                        for (_, client_info) in &server_state.clients {
+                            client_info.tx.send((
                                 String::from("main"),
                                 TaskMessage::UpdateGameState(GameStatePerspective::from_state(
-                                    // TODO: Can I pass a reference instead of cloning here?
                                     server_state.game_state.clone().unwrap(),
-                                    *player_index,
+                                    client_info.player_index,
                                 )),
                             ))
                             .await
@@ -84,10 +93,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     loop {
-        // Accept incoming TCP connections
         let (stream, _) = listener.accept().await?;
         println!("New connection established");
-        // Spawn a new task to handle the WebSocket connection
         tokio::spawn(client::handle_connection(stream, main_tx.clone()));
     }
 }

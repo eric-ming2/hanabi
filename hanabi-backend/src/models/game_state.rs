@@ -1,19 +1,21 @@
 use super::card::{Card, CardColor, UnknownCard};
 use rand::seq::SliceRandom;
 use rand::thread_rng;
-use std::alloc::handle_alloc_error;
 use std::collections::HashMap;
 
 mod generated {
-    pub mod requests {
+    pub mod responses {
         include!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/src/generated/requests.rs"
+            "/src/generated/responses.rs"
         ));
     }
 }
 
-use generated::requests::{Request, UpdateGameRequest};
+use generated::responses::{
+    Card as ProtoCard, CardColor as ProtoCardColor, PlayerCards as ProtoPlayerCards, Response,
+    UnknownCard as ProtoUnknownCard, UpdateGameResponse,
+};
 
 #[derive(Debug, Clone)]
 pub struct GameState {
@@ -210,8 +212,8 @@ impl GameStatePerspective {
         }
     }
 
-    pub fn to_proto(&self) -> Request {
-        let update_game_req = UpdateGameRequest {
+    pub fn to_proto(&self) -> Response {
+        let update_game_req = UpdateGameResponse {
             my_hand: self.my_hand.iter().map(|c| c.clone().into()).collect(),
             other_hands: self.other_hands.iter().map(|p| p.clone().into()).collect(),
             turn: self.turn as i32,
@@ -225,49 +227,49 @@ impl GameStatePerspective {
                 .map(|(k, v)| (k.clone() as i32, *v as i32))
                 .collect(),
         };
-        Request {
-            request_type: 4,
-            request: Some(generated::requests::request::Request::UpdateGame(
+        Response {
+            response_type: 1,
+            response: Some(generated::responses::response::Response::UpdateGame(
                 update_game_req,
             )),
         }
     }
 }
 
-impl From<PlayerCards> for generated::requests::PlayerCards {
+impl From<PlayerCards> for ProtoPlayerCards {
     fn from(pc: PlayerCards) -> Self {
-        generated::requests::PlayerCards {
+        ProtoPlayerCards {
             cards: pc.cards.iter().map(|(c, _)| c.clone().into()).collect(),
             unknown_cards: pc.cards.iter().map(|(_, uc)| uc.clone().into()).collect(),
         }
     }
 }
 
-impl From<Card> for generated::requests::Card {
+impl From<Card> for ProtoCard {
     fn from(c: Card) -> Self {
-        generated::requests::Card {
+        ProtoCard {
             num: c.num as i32,
             color: match c.color {
-                CardColor::White => generated::requests::CardColor::White.into(),
-                CardColor::Yellow => generated::requests::CardColor::Yellow.into(),
-                CardColor::Green => generated::requests::CardColor::Green.into(),
-                CardColor::Blue => generated::requests::CardColor::Blue.into(),
-                CardColor::Red => generated::requests::CardColor::Red.into(),
+                CardColor::White => ProtoCardColor::White.into(),
+                CardColor::Yellow => ProtoCardColor::Yellow.into(),
+                CardColor::Green => ProtoCardColor::Green.into(),
+                CardColor::Blue => ProtoCardColor::Blue.into(),
+                CardColor::Red => ProtoCardColor::Red.into(),
             },
         }
     }
 }
 
-impl From<UnknownCard> for generated::requests::UnknownCard {
+impl From<UnknownCard> for ProtoUnknownCard {
     fn from(uc: UnknownCard) -> Self {
-        generated::requests::UnknownCard {
+        ProtoUnknownCard {
             num: uc.num.map(|num| num as i32),
             color: uc.color.map(|color| match color {
-                CardColor::White => generated::requests::CardColor::White.into(),
-                CardColor::Yellow => generated::requests::CardColor::Yellow.into(),
-                CardColor::Green => generated::requests::CardColor::Green.into(),
-                CardColor::Blue => generated::requests::CardColor::Blue.into(),
-                CardColor::Red => generated::requests::CardColor::Red.into(),
+                CardColor::White => ProtoCardColor::White.into(),
+                CardColor::Yellow => ProtoCardColor::Yellow.into(),
+                CardColor::Green => ProtoCardColor::Green.into(),
+                CardColor::Blue => ProtoCardColor::Blue.into(),
+                CardColor::Red => ProtoCardColor::Red.into(),
             }),
         }
     }

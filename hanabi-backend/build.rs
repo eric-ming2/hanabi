@@ -5,6 +5,9 @@ fn main() {
 
     prost_build::Config::new()
         .out_dir(out_dir) // Set the output directory
-        .compile_protos(&["../proto/requests.proto"], &["../proto"])
+        .compile_protos(
+            &["../proto/requests.proto", "../proto/responses.proto"],
+            &["../proto"],
+        )
         .unwrap();
 }

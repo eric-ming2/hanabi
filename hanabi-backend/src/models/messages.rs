@@ -5,7 +5,7 @@ use super::game_state::GameStatePerspective;
 #[derive(Debug)]
 pub enum TaskMessage {
     // Messages that a client thread sends to the main thread
-    InitClient(String, Sender<(String, TaskMessage)>),
+    InitClient(String, String, Sender<(String, TaskMessage)>), // id, username, tx. Could refactor to struct?
     CloseClient(String),
     StartGame,
     // Messages that the main thread sends to a client thread

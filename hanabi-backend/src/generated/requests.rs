@@ -11,16 +11,23 @@ pub mod request {
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Request {
         #[prost(message, tag = "2")]
-        StartGame(super::StartGameRequest),
+        InitConnection(super::InitConnectionRequest),
         #[prost(message, tag = "3")]
-        DiscardCard(super::DiscardCardRequest),
+        StartGame(super::StartGameRequest),
         #[prost(message, tag = "4")]
-        PlayCard(super::PlayCardRequest),
+        DiscardCard(super::DiscardCardRequest),
         #[prost(message, tag = "5")]
-        GiveHint(super::GiveHintRequest),
+        PlayCard(super::PlayCardRequest),
         #[prost(message, tag = "6")]
-        UpdateGame(super::UpdateGameRequest),
+        GiveHint(super::GiveHintRequest),
     }
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct InitConnectionRequest {
+    #[prost(string, tag = "1")]
+    pub id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub username: ::prost::alloc::string::String,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct StartGameRequest {}
@@ -41,55 +48,14 @@ pub struct GiveHintRequest {
     #[prost(int32, tag = "2")]
     pub player_index: i32,
 }
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
-pub struct UnknownCard {
-    #[prost(int32, optional, tag = "1")]
-    pub num: ::core::option::Option<i32>,
-    #[prost(enumeration = "CardColor", optional, tag = "2")]
-    pub color: ::core::option::Option<i32>,
-}
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
-pub struct Card {
-    #[prost(int32, tag = "1")]
-    pub num: i32,
-    #[prost(enumeration = "CardColor", tag = "2")]
-    pub color: i32,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct PlayerCards {
-    #[prost(message, repeated, tag = "1")]
-    pub cards: ::prost::alloc::vec::Vec<Card>,
-    #[prost(message, repeated, tag = "2")]
-    pub unknown_cards: ::prost::alloc::vec::Vec<UnknownCard>,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct UpdateGameRequest {
-    #[prost(message, repeated, tag = "1")]
-    pub my_hand: ::prost::alloc::vec::Vec<UnknownCard>,
-    #[prost(message, repeated, tag = "2")]
-    pub other_hands: ::prost::alloc::vec::Vec<PlayerCards>,
-    #[prost(int32, tag = "3")]
-    pub turn: i32,
-    #[prost(message, repeated, tag = "4")]
-    pub deck: ::prost::alloc::vec::Vec<Card>,
-    #[prost(message, repeated, tag = "5")]
-    pub discard_pile: ::prost::alloc::vec::Vec<Card>,
-    #[prost(int32, tag = "6")]
-    pub hints: i32,
-    #[prost(int32, tag = "7")]
-    pub bombs: i32,
-    /// key is CardColor, value is 0-5
-    #[prost(map = "int32, int32", tag = "8")]
-    pub fireworks: ::std::collections::HashMap<i32, i32>,
-}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum RequestType {
-    StartGame = 0,
-    DiscardCard = 1,
-    PlayCard = 2,
-    GiveHint = 3,
-    UpdateGame = 4,
+    InitConnection = 0,
+    StartGame = 1,
+    DiscardCard = 2,
+    PlayCard = 3,
+    GiveHint = 4,
 }
 impl RequestType {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -98,56 +64,21 @@ impl RequestType {
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
     pub fn as_str_name(&self) -> &'static str {
         match self {
+            Self::InitConnection => "INIT_CONNECTION",
             Self::StartGame => "START_GAME",
             Self::DiscardCard => "DISCARD_CARD",
             Self::PlayCard => "PLAY_CARD",
             Self::GiveHint => "GIVE_HINT",
-            Self::UpdateGame => "UPDATE_GAME",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
+            "INIT_CONNECTION" => Some(Self::InitConnection),
             "START_GAME" => Some(Self::StartGame),
             "DISCARD_CARD" => Some(Self::DiscardCard),
             "PLAY_CARD" => Some(Self::PlayCard),
             "GIVE_HINT" => Some(Self::GiveHint),
-            "UPDATE_GAME" => Some(Self::UpdateGame),
-            _ => None,
-        }
-    }
-}
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
-#[repr(i32)]
-pub enum CardColor {
-    White = 0,
-    Yellow = 1,
-    Green = 2,
-    Blue = 3,
-    Red = 4,
-}
-impl CardColor {
-    /// String value of the enum field names used in the ProtoBuf definition.
-    ///
-    /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
-        match self {
-            Self::White => "White",
-            Self::Yellow => "Yellow",
-            Self::Green => "Green",
-            Self::Blue => "Blue",
-            Self::Red => "Red",
-        }
-    }
-    /// Creates an enum from field names used in the ProtoBuf definition.
-    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
-        match value {
-            "White" => Some(Self::White),
-            "Yellow" => Some(Self::Yellow),
-            "Green" => Some(Self::Green),
-            "Blue" => Some(Self::Blue),
-            "Red" => Some(Self::Red),
             _ => None,
         }
     }
