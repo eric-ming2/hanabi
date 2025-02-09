@@ -30,13 +30,32 @@ message Card {
   int32 num = 1;
   CardColor color = 2;
 }
-message PlayerCards {
+message NotStartedPlayer {
+  string name = 1;
+  string id = 2;
+  bool ready = 3;
+}
+message StartedPlayer {
+  string name = 3;
+  string id = 4;
   repeated Card cards = 1;
   repeated UnknownCard unknown_cards = 2;
 }
 message UpdateGameResponse {
+  bool started = 9;
+  oneof game_perspective {
+    NotStartedGamePerspective not_started_state = 1;
+    StartedGamePerspective started_state = 2;
+  }
+}
+
+message NotStartedGamePerspective {
+  repeated NotStartedPlayer not_started_players = 10;
+}
+
+message StartedGamePerspective {
   repeated UnknownCard my_hand = 1;
-  repeated PlayerCards other_hands = 2;
+  repeated StartedPlayer other_hands = 2;
   int32 turn = 3;
   repeated Card deck = 4;
   repeated Card discard_pile = 5;

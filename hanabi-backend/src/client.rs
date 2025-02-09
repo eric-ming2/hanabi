@@ -44,15 +44,15 @@ async fn process_connection(
     // Split the WebSocket stream into a sender and receiver
     let (mut write, mut read) = ws_stream.split();
 
-    let (tx, mut rx) = channel::<(String, TaskMessage)>(100);
+    let (tx, mut rx) = channel::<TaskMessage>(100);
 
     // TODO: This code smells
     let mut id = "uninitialized".to_string();
 
     tokio::spawn(async move {
-        while let Some((_, msg)) = rx.recv().await {
+        while let Some(msg) = rx.recv().await {
             match msg {
-                TaskMessage::UpdateGameState(game_state_perspective) => {
+                TaskMessage::UpdateGamePerspective(game_state_perspective) => {
                     write
                         .send(Message::Binary(Bytes::from(
                             game_state_perspective.to_proto().encode_to_vec(),
@@ -82,7 +82,11 @@ async fn process_connection(
                                 main_tx
                                     .send((
                                         id.clone(),
-                                        TaskMessage::InitClient(id.clone(), init_connection.username.clone(), tx.clone()),
+                                        TaskMessage::InitClient(
+                                            id.clone(),
+                                            init_connection.username.clone(),
+                                            tx.clone(),
+                                        ),
                                     ))
                                     .await
                                     .unwrap();

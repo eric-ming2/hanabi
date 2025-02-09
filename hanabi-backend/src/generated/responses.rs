@@ -29,7 +29,18 @@ pub struct Card {
     pub color: i32,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct PlayerCards {
+pub struct NotStartedPlayer {
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct StartedPlayer {
+    #[prost(string, tag = "3")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(string, tag = "4")]
+    pub id: ::prost::alloc::string::String,
     #[prost(message, repeated, tag = "1")]
     pub cards: ::prost::alloc::vec::Vec<Card>,
     #[prost(message, repeated, tag = "2")]
@@ -37,10 +48,32 @@ pub struct PlayerCards {
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct UpdateGameResponse {
+    #[prost(bool, tag = "9")]
+    pub started: bool,
+    #[prost(oneof = "update_game_response::GamePerspective", tags = "1, 2")]
+    pub game_perspective: ::core::option::Option<update_game_response::GamePerspective>,
+}
+/// Nested message and enum types in `UpdateGameResponse`.
+pub mod update_game_response {
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum GamePerspective {
+        #[prost(message, tag = "1")]
+        NotStartedState(super::NotStartedGamePerspective),
+        #[prost(message, tag = "2")]
+        StartedState(super::StartedGamePerspective),
+    }
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct NotStartedGamePerspective {
+    #[prost(message, repeated, tag = "10")]
+    pub not_started_players: ::prost::alloc::vec::Vec<NotStartedPlayer>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct StartedGamePerspective {
     #[prost(message, repeated, tag = "1")]
     pub my_hand: ::prost::alloc::vec::Vec<UnknownCard>,
     #[prost(message, repeated, tag = "2")]
-    pub other_hands: ::prost::alloc::vec::Vec<PlayerCards>,
+    pub other_hands: ::prost::alloc::vec::Vec<StartedPlayer>,
     #[prost(int32, tag = "3")]
     pub turn: i32,
     #[prost(message, repeated, tag = "4")]

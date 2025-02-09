@@ -13,13 +13,95 @@ mod generated {
 }
 
 use generated::responses::{
-    Card as ProtoCard, CardColor as ProtoCardColor, PlayerCards as ProtoPlayerCards, Response,
+    update_game_response::GamePerspective as ProtoGamePerspective, Card as ProtoCard,
+    CardColor as ProtoCardColor, NotStartedGamePerspective as ProtoNotStartedGamePerspective,
+    NotStartedPlayer as ProtoNotStartedPlayer, Response, ResponseType,
+    StartedGamePerspective as ProtoStartedGamePerspective, StartedPlayer as ProtoStartedPlayer,
     UnknownCard as ProtoUnknownCard, UpdateGameResponse,
 };
 
 #[derive(Debug, Clone)]
-pub struct GameState {
-    players: Vec<PlayerCards>,
+pub struct Game {
+    pub(crate) game_state: GameState,
+}
+
+impl Game {
+    pub(crate) fn new() -> Self {
+        Game {
+            game_state: GameState::NotStarted(NotStartedGameState::new()),
+        }
+    }
+
+    // TODO: Return result, NASTY race condition until you do. Also gross code.
+    pub(crate) fn add_player(&mut self, player_name: String, id: String) {
+        match self.game_state.clone() {
+            GameState::NotStarted(mut old_game_state) => {
+                old_game_state.players.push(NotStartedPlayer {
+                    name: player_name,
+                    id,
+                    ready: false,
+                });
+                self.game_state = GameState::NotStarted(NotStartedGameState {
+                    players: old_game_state.players,
+                })
+            }
+            GameState::Started(_) => {
+                println!("Tried to add a new player to a game that's already started.");
+            }
+        }
+    }
+
+    pub(crate) fn start_game(&mut self) {
+        match self.game_state.clone() {
+            GameState::NotStarted(old_game_state) => {
+                let deck = StartedGameState::new_deck();
+                let (deck, players) = StartedGameState::deal(deck, &old_game_state.players);
+                self.game_state = GameState::Started(StartedGameState {
+                    players,
+                    turn: 0,
+                    deck,
+                    discard_pile: Vec::new(),
+                    hints: 8,
+                    bombs: 3,
+                    fireworks: StartedGameState::new_fireworks(),
+                });
+            }
+            GameState::Started(_) => {
+                println!("Tried to start a game that's already started. Ignoring message.")
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum GameState {
+    NotStarted(NotStartedGameState),
+    Started(StartedGameState),
+}
+
+#[derive(Debug, Clone)]
+pub struct NotStartedGameState {
+    pub(crate) players: Vec<NotStartedPlayer>,
+}
+
+impl NotStartedGameState {
+    fn new() -> Self {
+        NotStartedGameState {
+            players: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct NotStartedPlayer {
+    name: String,
+    id: String,
+    pub(crate) ready: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct StartedGameState {
+    players: Vec<StartedPlayer>,
     turn: u8,
     deck: Vec<Card>,
     discard_pile: Vec<Card>,
@@ -29,60 +111,57 @@ pub struct GameState {
 }
 
 #[derive(Debug, Clone)]
-pub struct PlayerCards {
+pub struct StartedPlayer {
+    name: String,
+    id: String,
     cards: [(Card, UnknownCard); 4],
 }
 
-impl GameState {
-    pub fn new(num_players: u8) -> Self {
-        let deck = Self::new_deck();
-        let (deck, players) = Self::deal(deck, num_players);
-        GameState {
-            players,
-            turn: 0,
-            deck,
-            discard_pile: Vec::new(),
-            hints: 8,
-            bombs: 3,
-            fireworks: Self::new_fireworks(),
-        }
-    }
-
-    fn deal(mut deck: Vec<Card>, num_players: u8) -> (Vec<Card>, Vec<PlayerCards>) {
-        let mut players = Vec::new();
-        for _ in 0..num_players {
-            let cards: [(Card, UnknownCard); 4] = [
-                (
-                    deck.pop().unwrap(),
-                    UnknownCard {
-                        num: None,
-                        color: None,
-                    },
-                ),
-                (
-                    deck.pop().unwrap(),
-                    UnknownCard {
-                        num: None,
-                        color: None,
-                    },
-                ),
-                (
-                    deck.pop().unwrap(),
-                    UnknownCard {
-                        num: None,
-                        color: None,
-                    },
-                ),
-                (
-                    deck.pop().unwrap(),
-                    UnknownCard {
-                        num: None,
-                        color: None,
-                    },
-                ),
-            ];
-            players.push(PlayerCards { cards });
-        }
+impl StartedGameState {
+    fn deal(
+        mut deck: Vec<Card>,
+        not_started_players: &Vec<NotStartedPlayer>,
+    ) -> (Vec<Card>, Vec<StartedPlayer>) {
+        let mut players = not_started_players
+            .iter()
+            .map(|nsp| {
+                let cards: [(Card, UnknownCard); 4] = [
+                    (
+                        deck.pop().unwrap(),
+                        UnknownCard {
+                            num: None,
+                            color: None,
+                        },
+                    ),
+                    (
+                        deck.pop().unwrap(),
+                        UnknownCard {
+                            num: None,
+                            color: None,
+                        },
+                    ),
+                    (
+                        deck.pop().unwrap(),
+                        UnknownCard {
+                            num: None,
+                            color: None,
+                        },
+                    ),
+                    (
+                        deck.pop().unwrap(),
+                        UnknownCard {
+                            num: None,
+                            color: None,
+                        },
+                    ),
+                ];
+                StartedPlayer {
+                    name: nsp.name.clone(),
+                    id: nsp.id.clone(),
+                    cards,
+                }
+            })
+            .collect();
         (deck, players)
     }
 
@@ -171,9 +250,96 @@ impl GameState {
 }
 
 #[derive(Debug)]
-pub struct GameStatePerspective {
+pub struct GamePerspective {
+    perspective: Perspective,
+}
+
+impl GamePerspective {
+    pub fn from_state(game: &Game, player_index: u8) -> GamePerspective {
+        match game.game_state.clone() {
+            GameState::NotStarted(nsgs) => GamePerspective {
+                perspective: Perspective::NotStarted(NotStartedGamePerspective::from_state(
+                    &nsgs,
+                    player_index,
+                )),
+            },
+            GameState::Started(sgs) => GamePerspective {
+                perspective: Perspective::Started(StartedGamePerspective::from_state(
+                    &sgs,
+                    player_index,
+                )),
+            },
+        }
+    }
+
+    pub fn to_proto(&self) -> Response {
+        let update_game_req = match &self.perspective {
+            Perspective::NotStarted(nsgp) => UpdateGameResponse {
+                started: false,
+                game_perspective: Some(ProtoGamePerspective::NotStartedState(
+                    ProtoNotStartedGamePerspective {
+                        not_started_players: nsgp
+                            .players
+                            .iter()
+                            .map(|c| c.clone().into())
+                            .collect(),
+                    },
+                )),
+            },
+            Perspective::Started(sgs) => UpdateGameResponse {
+                started: true,
+                game_perspective: Some(ProtoGamePerspective::StartedState(
+                    ProtoStartedGamePerspective {
+                        my_hand: sgs.my_hand.iter().map(|c| c.clone().into()).collect(),
+                        other_hands: sgs.other_hands.iter().map(|p| p.clone().into()).collect(),
+                        turn: sgs.turn as i32,
+                        deck: sgs.deck.iter().map(|c| c.clone().into()).collect(),
+                        discard_pile: sgs.discard_pile.iter().map(|c| c.clone().into()).collect(),
+                        hints: sgs.hints as i32,
+                        bombs: sgs.bombs as i32,
+                        fireworks: sgs
+                            .fireworks
+                            .iter()
+                            .map(|(k, v)| (k.clone() as i32, *v as i32))
+                            .collect(),
+                    },
+                )),
+            },
+        };
+        Response {
+            response_type: ResponseType::UpdateGame.into(),
+            response: Some(generated::responses::response::Response::UpdateGame(
+                update_game_req,
+            )),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum Perspective {
+    NotStarted(NotStartedGamePerspective),
+    Started(StartedGamePerspective),
+}
+
+#[derive(Debug)]
+pub struct NotStartedGamePerspective {
+    players: Vec<NotStartedPlayer>,
+}
+impl NotStartedGamePerspective {
+    pub fn from_state(game_state: &NotStartedGameState, player_index: u8) -> Self {
+        let mut other_players = game_state.players.clone();
+        other_players.remove(player_index as usize);
+        other_players.rotate_left(player_index as usize);
+        Self {
+            players: other_players,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct StartedGamePerspective {
     my_hand: [UnknownCard; 4],
-    other_hands: Vec<PlayerCards>,
+    other_hands: Vec<StartedPlayer>,
     turn: u8,
     deck: Vec<Card>,
     discard_pile: Vec<Card>,
@@ -182,8 +348,8 @@ pub struct GameStatePerspective {
     fireworks: HashMap<CardColor, u8>,
 }
 
-impl GameStatePerspective {
-    pub fn from_state(game_state: GameState, player_index: u8) -> Self {
+impl StartedGamePerspective {
+    pub fn from_state(game_state: &StartedGameState, player_index: u8) -> Self {
         let my_cards = game_state
             .players
             .get(player_index as usize)
@@ -200,47 +366,34 @@ impl GameStatePerspective {
         other_hands.remove(player_index as usize);
         other_hands.rotate_left(player_index as usize);
 
-        GameStatePerspective {
+        StartedGamePerspective {
             my_hand,
             other_hands,
             turn: game_state.turn,
-            deck: game_state.deck,
-            discard_pile: game_state.discard_pile,
+            deck: game_state.deck.clone(),
+            discard_pile: game_state.discard_pile.clone(),
             hints: game_state.hints,
             bombs: game_state.bombs,
-            fireworks: game_state.fireworks,
-        }
-    }
-
-    pub fn to_proto(&self) -> Response {
-        let update_game_req = UpdateGameResponse {
-            my_hand: self.my_hand.iter().map(|c| c.clone().into()).collect(),
-            other_hands: self.other_hands.iter().map(|p| p.clone().into()).collect(),
-            turn: self.turn as i32,
-            deck: self.deck.iter().map(|c| c.clone().into()).collect(),
-            discard_pile: self.discard_pile.iter().map(|c| c.clone().into()).collect(),
-            hints: self.hints as i32,
-            bombs: self.bombs as i32,
-            fireworks: self
-                .fireworks
-                .iter()
-                .map(|(k, v)| (k.clone() as i32, *v as i32))
-                .collect(),
-        };
-        Response {
-            response_type: 1,
-            response: Some(generated::responses::response::Response::UpdateGame(
-                update_game_req,
-            )),
+            fireworks: game_state.fireworks.clone(),
         }
     }
 }
 
-impl From<PlayerCards> for ProtoPlayerCards {
-    fn from(pc: PlayerCards) -> Self {
-        ProtoPlayerCards {
-            cards: pc.cards.iter().map(|(c, _)| c.clone().into()).collect(),
-            unknown_cards: pc.cards.iter().map(|(_, uc)| uc.clone().into()).collect(),
+impl From<NotStartedPlayer> for ProtoNotStartedPlayer {
+    fn from(nsp: NotStartedPlayer) -> Self {
+        ProtoNotStartedPlayer {
+            name: nsp.name,
+            id: nsp.id,
+        }
+    }
+}
+impl From<StartedPlayer> for ProtoStartedPlayer {
+    fn from(sp: StartedPlayer) -> Self {
+        ProtoStartedPlayer {
+            name: sp.name,
+            id: sp.id,
+            cards: sp.cards.iter().map(|(c, _)| c.clone().into()).collect(),
+            unknown_cards: sp.cards.iter().map(|(_, uc)| uc.clone().into()).collect(),
         }
     }
 }

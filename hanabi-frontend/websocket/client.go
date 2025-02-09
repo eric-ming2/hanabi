@@ -1,4 +1,4 @@
-package main
+package websocket
 
 import (
 	"github.com/eric-ming2/hanabi/hanabi-frontend/generated"
@@ -8,7 +8,35 @@ import (
 	"net/url"
 )
 
-func clientWorker(workerReqChan chan WorkerRequest, workerResChan chan WorkerResponse) {
+type WorkerRequestType int
+
+const (
+	ConnectRequest WorkerRequestType = iota
+)
+
+type WorkerRequest struct {
+	Type    WorkerRequestType
+	Payload interface{}
+}
+
+type ConnectRequestPayload struct {
+	Id       string
+	Username string
+}
+
+type WorkerResponseType int
+
+const (
+	ConnectFailed WorkerResponseType = iota
+	UpdateGameState
+)
+
+type WorkerResponse struct {
+	Type    WorkerResponseType
+	Payload interface{}
+}
+
+func ClientWorker(workerReqChan chan WorkerRequest, workerResChan chan WorkerResponse) {
 	for req := range workerReqChan {
 		switch req.Type {
 		case ConnectRequest:
@@ -46,16 +74,16 @@ func connect(workerResChan chan WorkerResponse, payload ConnectRequestPayload) {
 		log.Fatalf("Failed to write init connection message", err)
 	}
 
-	startGameReq, err := proto.Marshal(createStartGameRequest())
-	if err != nil {
-		log.Fatalf("Failed to marshal proto", err)
-	}
+	//startGameReq, err := proto.Marshal(createStartGameRequest())
+	//if err != nil {
+	//	log.Fatalf("Failed to marshal proto", err)
+	//}
 
 	// TODO: Move into sender fn, send on button click
-	err = conn.WriteMessage(websocket.BinaryMessage, startGameReq)
-	if err != nil {
-		log.Fatalf("Failed to write start game message", err)
-	}
+	//err = conn.WriteMessage(websocket.BinaryMessage, startGameReq)
+	//if err != nil {
+	//	log.Fatalf("Failed to write start game message", err)
+	//}
 
 	go listen(conn, workerResChan)
 

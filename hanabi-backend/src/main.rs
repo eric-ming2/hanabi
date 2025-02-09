@@ -1,12 +1,15 @@
 mod client;
 mod models;
 
-use models::game_state::{GameState, GameStatePerspective};
+use models::game_state::{StartedGamePerspective, StartedGameState};
 use models::messages::TaskMessage;
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::models::game_state::{
+    Game, GamePerspective, GameState, NotStartedGameState, Perspective,
+};
 use mpsc::{channel, Sender};
 use tokio::net::TcpListener;
 use tokio::sync::{mpsc, Mutex};
@@ -21,14 +24,13 @@ enum State {
 struct ClientInfo {
     player_index: u8,
     username: String,
-    tx: Sender<(String, TaskMessage)>,
+    tx: Sender<TaskMessage>,
 }
 
 #[derive(Debug)]
 struct ServerState {
-    state: State,
     clients: HashMap<String, ClientInfo>,
-    game_state: Option<GameState>,
+    game: Game,
 }
 
 #[tokio::main]
@@ -38,9 +40,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Listening on: {}", addr);
 
     let mut server_state = ServerState {
-        state: State::Lobby,
         clients: HashMap::new(),
-        game_state: None,
+        game: Game::new(),
     };
 
     let (main_tx, mut main_rx) = mpsc::channel::<(String, TaskMessage)>(100);
@@ -50,42 +51,60 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Main thread received from {}: {:?}", id, msg);
             match msg {
                 TaskMessage::InitClient(id, username, tx) => {
-                    server_state
-                        .clients
-                        .insert(id, ClientInfo {
+                    server_state.game.add_player(username.clone(), id.clone());
+                    server_state.clients.insert(
+                        id,
+                        ClientInfo {
                             player_index: server_state.clients.len() as u8,
                             username,
                             tx,
-                        });
+                        },
+                    );
+                    for client in server_state.clients.values() {
+                        client
+                            .tx
+                            .send(TaskMessage::UpdateGamePerspective(
+                                GamePerspective::from_state(
+                                    &server_state.game,
+                                    client.player_index,
+                                ),
+                            ))
+                            .await
+                            .expect("Something is wrong");
+                    }
                     println!("size: {}", server_state.clients.len());
                 }
                 TaskMessage::CloseClient(id) => {
                     server_state.clients.remove(&id);
                 }
                 TaskMessage::StartGame => {
-                    if server_state.clients.len() > 2 {
-                        server_state.state = State::Game;
-                        server_state.game_state =
-                            Some(GameState::new(server_state.clients.len() as u8));
-                        for (_, client_info) in &server_state.clients {
-                            client_info.tx.send((
-                                String::from("main"),
-                                TaskMessage::UpdateGameState(GameStatePerspective::from_state(
-                                    server_state.game_state.clone().unwrap(),
-                                    client_info.player_index,
-                                )),
-                            ))
-                            .await
-                            .unwrap();
+                    match &server_state.game.game_state {
+                        GameState::NotStarted(nsgs) => {
+                            if nsgs.players.len() > 2 && nsgs.players.iter().all(|p| p.ready) {
+                                server_state.game.start_game();
+                                for client in server_state.clients.values() {
+                                    client
+                                        .tx
+                                        .send(TaskMessage::UpdateGamePerspective(
+                                            GamePerspective::from_state(
+                                                &server_state.game,
+                                                client.player_index,
+                                            ),
+                                        ))
+                                        .await
+                                        .expect("Something is wrong");
+                                }
+                            } else {
+                                // TODO: You should send a message to the UI somehow
+                                println!("Failed to start game");
+                            }
                         }
-                    } else {
-                        println!(
-                            "Need 3 players to start the game. Tried to start with {}",
-                            server_state.clients.len()
-                        );
+                        GameState::Started(_) => {
+                            println!("Tried to start an already started game.");
+                        }
                     }
                 }
-                TaskMessage::UpdateGameState(_) => {
+                TaskMessage::UpdateGamePerspective(_) => {
                     unreachable!();
                 }
             }
