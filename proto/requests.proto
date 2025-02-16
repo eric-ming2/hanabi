@@ -6,20 +6,23 @@ option go_package = "github.com/eric-ming2/hanabi/hanabi-frontend/generated";
 
 enum RequestType {
     INIT_CONNECTION = 0;
-    START_GAME = 1;
-    DISCARD_CARD = 2;
-    PLAY_CARD = 3;
-    GIVE_HINT = 4;
+    READY = 1;
+    START_GAME = 2;
+    DISCARD_CARD = 3;
+    PLAY_CARD = 4;
+    GIVE_HINT = 5;
 }
 
 message Request {
-    RequestType request_type = 1;
+    string id = 1;
+    RequestType request_type = 2;
     oneof request {
-        InitConnectionRequest init_connection = 2;
-        StartGameRequest start_game = 3;
-        DiscardCardRequest discard_card = 4;
-        PlayCardRequest play_card = 5;
-        GiveHintRequest give_hint = 6;
+        InitConnectionRequest init_connection = 3;
+        ReadyRequest ready = 4;
+        StartGameRequest start_game = 5;
+        DiscardCardRequest discard_card = 6;
+        PlayCardRequest play_card = 7;
+        GiveHintRequest give_hint = 8;
     }
 }
 
@@ -27,6 +30,7 @@ message InitConnectionRequest {
     string id = 1;
     string username = 2;
 }
+message ReadyRequest { }
 message StartGameRequest { }
 message DiscardCardRequest {
     int32 card_index = 1;

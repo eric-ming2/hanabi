@@ -1,17 +1,20 @@
 package websocket
 
 import (
+	"log"
+	"net/url"
+
 	"github.com/eric-ming2/hanabi/hanabi-frontend/generated"
 	"github.com/gorilla/websocket"
 	"google.golang.org/protobuf/proto"
-	"log"
-	"net/url"
 )
 
 type WorkerRequestType int
 
 const (
 	ConnectRequest WorkerRequestType = iota
+	ReadyRequest
+	StartGameRequest
 )
 
 type WorkerRequest struct {
@@ -36,7 +39,13 @@ type WorkerResponse struct {
 	Payload interface{}
 }
 
-func ClientWorker(workerReqChan chan WorkerRequest, workerResChan chan WorkerResponse) {
+func ClientWorker(workerReqChan chan WorkerRequest, workerResChan chan WorkerResponse, id string) {
+	var conn *websocket.Conn = nil
+	defer func() {
+		if conn != nil {
+			conn.Close()
+		}
+	}()
 	for req := range workerReqChan {
 		switch req.Type {
 		case ConnectRequest:
@@ -44,12 +53,36 @@ func ClientWorker(workerReqChan chan WorkerRequest, workerResChan chan WorkerRes
 			if !ok {
 				log.Fatalf("Failed to cast payload to ConnectRequestPayload")
 			}
-			connect(workerResChan, payload)
+			conn = connect(workerResChan, payload)
+		case ReadyRequest:
+			if conn == nil {
+				log.Fatalf("Tried to ready before conn initialized. This should be impossible.")
+			}
+			startGameReq, err := proto.Marshal(createReadyRequest(id))
+			if err != nil {
+				log.Fatalf("Failed to marshal proto: %s", err)
+			}
+			err = conn.WriteMessage(websocket.BinaryMessage, startGameReq)
+			if err != nil {
+				log.Fatalf("Failed to write ready message: %s", err)
+			}
+		case StartGameRequest:
+			if conn == nil {
+				log.Fatalf("Tried to start game before conn initialized. This should be impossible.")
+			}
+			startGameReq, err := proto.Marshal(createStartGameRequest(id))
+			if err != nil {
+				log.Fatalf("Failed to marshal proto: %s", err)
+			}
+			err = conn.WriteMessage(websocket.BinaryMessage, startGameReq)
+			if err != nil {
+				log.Fatalf("Failed to write start game message: %s", err)
+			}
 		}
 	}
 }
 
-func connect(workerResChan chan WorkerResponse, payload ConnectRequestPayload) {
+func connect(workerResChan chan WorkerResponse, payload ConnectRequestPayload) *websocket.Conn {
 	serverURL := url.URL{
 		Scheme: "ws",
 		Host:   "127.0.0.1:8080",
@@ -62,7 +95,6 @@ func connect(workerResChan chan WorkerResponse, payload ConnectRequestPayload) {
 	if err != nil {
 		log.Fatalf("Failed to connect to WebSocket server: %v", err)
 	}
-	defer conn.Close()
 	log.Println("Connected to WebSocket server")
 
 	initConnectionReq, err := proto.Marshal(createInitConnectionRequest(payload))
@@ -87,8 +119,7 @@ func connect(workerResChan chan WorkerResponse, payload ConnectRequestPayload) {
 
 	go listen(conn, workerResChan)
 
-	// TODO: Block with sender fn, handling StartGame, etc
-	select {}
+	return conn
 }
 
 func createInitConnectionRequest(payload ConnectRequestPayload) *generated.Request {
@@ -104,12 +135,22 @@ func createInitConnectionRequest(payload ConnectRequestPayload) *generated.Reque
 	}
 }
 
-func createStartGameRequest() *generated.Request {
-	startGameRequest := &generated.StartGameRequest{}
+func createReadyRequest(id string) *generated.Request {
 	return &generated.Request{
+		Id:          id,
+		RequestType: generated.RequestType_READY,
+		Request: &generated.Request_Ready{
+			Ready: &generated.ReadyRequest{},
+		},
+	}
+}
+
+func createStartGameRequest(id string) *generated.Request {
+	return &generated.Request{
+		Id:          id,
 		RequestType: generated.RequestType_START_GAME,
 		Request: &generated.Request_StartGame{
-			StartGame: startGameRequest,
+			StartGame: &generated.StartGameRequest{},
 		},
 	}
 }

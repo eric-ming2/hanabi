@@ -34,6 +34,8 @@ pub struct NotStartedPlayer {
     pub name: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
     pub id: ::prost::alloc::string::String,
+    #[prost(bool, tag = "3")]
+    pub ready: bool,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StartedPlayer {
@@ -65,6 +67,8 @@ pub mod update_game_response {
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct NotStartedGamePerspective {
+    #[prost(bool, tag = "1")]
+    pub ready: bool,
     #[prost(message, repeated, tag = "10")]
     pub not_started_players: ::prost::alloc::vec::Vec<NotStartedPlayer>,
 }

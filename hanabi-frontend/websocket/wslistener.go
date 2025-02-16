@@ -1,17 +1,17 @@
 package websocket
 
 import (
+	"log"
+
 	"github.com/eric-ming2/hanabi/hanabi-frontend/generated"
 	"github.com/eric-ming2/hanabi/hanabi-frontend/state"
 	"github.com/gorilla/websocket"
 	"google.golang.org/protobuf/proto"
-	"log"
 )
 
 func listen(conn *websocket.Conn, wsResChan chan WorkerResponse) {
 	for {
 		messageType, message, err := conn.ReadMessage()
-		log.Printf("Just read a message!")
 		if err != nil {
 			log.Printf("Error reading message: %v", err)
 			break
@@ -27,7 +27,6 @@ func listen(conn *websocket.Conn, wsResChan chan WorkerResponse) {
 				log.Printf("Unable to unmarshal proto: %v", err)
 				return
 			}
-			log.Printf("Ur mom: {}", response.ResponseType)
 			switch response.ResponseType {
 			case generated.ResponseType_UPDATE_GAME:
 				log.Printf("Received UPDATE_GAME message: %v", response.GetUpdateGame())
@@ -52,12 +51,13 @@ func parseUpdateGame(updateGameProto *generated.UpdateGameResponse) *state.GameS
 			players = append(players, state.NotStartedPlayer{
 				Name:  p.Name,
 				Id:    p.Id,
-				Ready: false,
+				Ready: p.Ready,
 			})
 		}
 		return &state.GameState{
 			Started: started,
 			NotStartedState: state.NotStartedGameState{
+				Ready:   updateGameProto.GetNotStartedState().Ready,
 				Players: players,
 			},
 		}

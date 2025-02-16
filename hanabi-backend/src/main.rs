@@ -60,24 +60,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             tx,
                         },
                     );
-                    for client in server_state.clients.values() {
-                        client
-                            .tx
-                            .send(TaskMessage::UpdateGamePerspective(
-                                GamePerspective::from_state(
-                                    &server_state.game,
-                                    client.player_index,
-                                ),
-                            ))
-                            .await
-                            .expect("Something is wrong");
-                    }
-                    println!("size: {}", server_state.clients.len());
                 }
                 TaskMessage::CloseClient(id) => {
                     server_state.clients.remove(&id);
                 }
+                TaskMessage::Ready => {
+                    server_state.game.ready(id);
+                }
                 TaskMessage::StartGame => {
+                    // TODO: Should probably move logic inside the Game struct.
                     match &server_state.game.game_state {
                         GameState::NotStarted(nsgs) => {
                             if nsgs.players.len() > 2 && nsgs.players.iter().all(|p| p.ready) {
@@ -108,6 +99,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     unreachable!();
                 }
             }
+            for client in server_state.clients.values() {
+                client
+                    .tx
+                    .send(TaskMessage::UpdateGamePerspective(
+                        GamePerspective::from_state(&server_state.game, client.player_index),
+                    ))
+                    .await
+                    .expect("Something is wrong");
+            }
+            println!("game state: {:?}", server_state.game);
         }
     });
 

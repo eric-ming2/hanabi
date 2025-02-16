@@ -51,6 +51,22 @@ impl Game {
         }
     }
 
+    pub(crate) fn ready(&mut self, id: String) {
+        match self.game_state.clone() {
+            GameState::NotStarted(old_game_state) => {
+                let mut players = old_game_state.players.clone();
+                if let Some(player) = players.iter_mut().find(|p| p.id == id) {
+                    println!("Found player. Previous status: {}", player.ready);
+                    player.ready = !player.ready;
+                }
+                self.game_state = GameState::NotStarted(NotStartedGameState { players })
+            }
+            GameState::Started(_) => {
+                println!("Tried to ready in a game that's already started. Ignoring message.")
+            }
+        }
+    }
+
     pub(crate) fn start_game(&mut self) {
         match self.game_state.clone() {
             GameState::NotStarted(old_game_state) => {
@@ -278,6 +294,7 @@ impl GamePerspective {
                 started: false,
                 game_perspective: Some(ProtoGamePerspective::NotStartedState(
                     ProtoNotStartedGamePerspective {
+                        ready: nsgp.ready,
                         not_started_players: nsgp
                             .players
                             .iter()
@@ -323,14 +340,17 @@ pub enum Perspective {
 
 #[derive(Debug)]
 pub struct NotStartedGamePerspective {
+    ready: bool,
     players: Vec<NotStartedPlayer>,
 }
 impl NotStartedGamePerspective {
     pub fn from_state(game_state: &NotStartedGameState, player_index: u8) -> Self {
         let mut other_players = game_state.players.clone();
+        let ready = other_players[player_index as usize].ready;
         other_players.remove(player_index as usize);
         other_players.rotate_left(player_index as usize);
         Self {
+            ready,
             players: other_players,
         }
     }
@@ -384,6 +404,7 @@ impl From<NotStartedPlayer> for ProtoNotStartedPlayer {
         ProtoNotStartedPlayer {
             name: nsp.name,
             id: nsp.id,
+            ready: nsp.ready,
         }
     }
 }

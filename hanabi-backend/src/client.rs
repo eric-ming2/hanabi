@@ -96,6 +96,13 @@ async fn process_connection(
                             }
                         }
                     }
+                    RequestType::Ready => {
+                        println!("Received ready request");
+                        main_tx
+                            .send((id.clone(), TaskMessage::Ready))
+                            .await
+                            .unwrap();
+                    }
                     RequestType::StartGame => {
                         println!("Received StartGame request");
                         main_tx

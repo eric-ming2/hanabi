@@ -50,6 +50,7 @@ message UpdateGameResponse {
 }
 
 message NotStartedGamePerspective {
+  bool ready = 1;
   repeated NotStartedPlayer not_started_players = 10;
 }
 

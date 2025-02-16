@@ -7,6 +7,7 @@ type GameState struct {
 }
 
 type NotStartedGameState struct {
+	Ready   bool
 	Players []NotStartedPlayer
 }
 

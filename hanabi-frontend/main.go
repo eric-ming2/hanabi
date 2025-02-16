@@ -2,50 +2,63 @@ package main
 
 import (
 	"fmt"
+
 	"github.com/eric-ming2/hanabi/hanabi-frontend/screens"
 	"github.com/eric-ming2/hanabi/hanabi-frontend/state"
 	"github.com/eric-ming2/hanabi/hanabi-frontend/websocket"
+	"github.com/google/uuid"
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
 type Game struct {
-	State         *state.GameState
-	StartScreen   *screens.StartScreen
-	GameScreen    *screens.GameScreen
-	WorkerReqChan chan websocket.WorkerRequest
-	WorkerResChan chan websocket.WorkerResponse
+	username             string
+	id                   string
+	State                *state.GameState
+	StartScreen          *screens.StartScreen
+	NotStartedGameScreen *screens.NotStartedGameScreen
+	StartedGameScreen    *screens.StartedGameScreen
+	WorkerReqChan        chan websocket.WorkerRequest
+	WorkerResChan        chan websocket.WorkerResponse
 }
 
 func (g *Game) Update() error {
 	if g.State == nil {
-		return g.StartScreen.Update(g.WorkerReqChan)
+		return g.StartScreen.Update(g.WorkerReqChan, &g.username, g.id)
+	} else if g.State.Started {
+		return g.StartedGameScreen.Update(g.WorkerReqChan)
+	} else {
+		return g.NotStartedGameScreen.Update(g.WorkerReqChan)
 	}
-	return g.GameScreen.Update(g.WorkerReqChan)
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
 	if g.State == nil {
-		g.StartScreen.Draw(g.State, screen)
+		g.StartScreen.Draw(screen, &g.username)
+	} else if g.State.Started {
+		g.StartedGameScreen.Draw(screen, g.username, g.State)
+	} else {
+		g.NotStartedGameScreen.Draw(screen, g.username, g.State)
 	}
-	g.GameScreen.Draw(g.State, screen)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
-	return 400, 200
+	return 640, 360
 }
 
 func main() {
 	workerReqChan := make(chan websocket.WorkerRequest)
 	workerResChan := make(chan websocket.WorkerResponse)
 	game := &Game{
-		StartScreen:   screens.NewStartScreen(),
-		GameScreen:    screens.NewGameScreen(),
-		WorkerReqChan: workerReqChan,
-		WorkerResChan: workerResChan,
+		id:                   uuid.New().String(),
+		StartScreen:          screens.NewStartScreen(),
+		NotStartedGameScreen: screens.NewNotStartedGameScreen(),
+		StartedGameScreen:    screens.NewStartedGameScreen(),
+		WorkerReqChan:        workerReqChan,
+		WorkerResChan:        workerResChan,
 	}
-	go websocket.ClientWorker(workerReqChan, workerResChan)
+	go websocket.ClientWorker(workerReqChan, workerResChan, game.id)
 	go handleWorkerRes(workerResChan, game)
-	ebiten.SetWindowSize(960, 540)
+	ebiten.SetWindowSize(1280, 720)
 	ebiten.SetWindowTitle("Hanabi")
 	if err := ebiten.RunGame(game); err != nil {
 		fmt.Println(err)
@@ -59,7 +72,7 @@ func handleWorkerRes(ch <-chan websocket.WorkerResponse, g *Game) {
 			fmt.Println("Unimplemented atm")
 		case websocket.UpdateGameState:
 			g.State = res.Payload.(*state.GameState)
-			fmt.Println("Your mom: {}", g.State)
+			fmt.Printf("Update Game State: %+v\n", g.State)
 		}
 	}
 }

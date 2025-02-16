@@ -2,16 +2,14 @@ package screens
 
 import (
 	"fmt"
-	"github.com/eric-ming2/hanabi/hanabi-frontend/state"
+	"image/color"
+
 	"github.com/eric-ming2/hanabi/hanabi-frontend/websocket"
-	"github.com/google/uuid"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"image/color"
 )
 
 type StartScreen struct {
-	Username       string
 	Id             string
 	CursorBlink    bool
 	ConnectPressed bool
@@ -27,17 +25,17 @@ const connectButtonY = 160
 const connectButtonW = 65
 const connectButtonH = 30
 
-func (s *StartScreen) Update(workerReqChan chan<- websocket.WorkerRequest) error {
+func (s *StartScreen) Update(workerReqChan chan<- websocket.WorkerRequest, username *string, id string) error {
 	// Handle input characters
 	for _, char := range ebiten.InputChars() {
 		if char >= 32 && char <= 126 { // Printable ASCII characters
-			s.Username += string(char)
+			*username += string(char)
 		}
 	}
 
 	// Handle backspace
-	if ebiten.IsKeyPressed(ebiten.KeyBackspace) && len(s.Username) > 0 {
-		s.Username = s.Username[:len(s.Username)-1]
+	if ebiten.IsKeyPressed(ebiten.KeyBackspace) && len(*username) > 0 {
+		*username = (*username)[:len(*username)-1]
 	}
 
 	// Update cursor blink state
@@ -55,8 +53,8 @@ func (s *StartScreen) Update(workerReqChan chan<- websocket.WorkerRequest) error
 				workerReqChan <- websocket.WorkerRequest{
 					Type: websocket.ConnectRequest,
 					Payload: websocket.ConnectRequestPayload{
-						Id:       uuid.New().String(),
-						Username: s.Username,
+						Id:       id,
+						Username: *username,
 					},
 				}
 			}
@@ -66,7 +64,7 @@ func (s *StartScreen) Update(workerReqChan chan<- websocket.WorkerRequest) error
 	return nil
 }
 
-func (s *StartScreen) Draw(_ *state.GameState, screen *ebiten.Image) {
+func (s *StartScreen) Draw(screen *ebiten.Image, username *string) {
 	drawText(screen, "Welcome To Hanabi", 125, 30, color.White)
 	drawText(screen, "Username:", 50, 90, color.White)
 	// Draw input box
@@ -75,11 +73,11 @@ func (s *StartScreen) Draw(_ *state.GameState, screen *ebiten.Image) {
 	ebitenutil.DrawRect(screen, float64(boxX+2), float64(boxY+2), float64(boxW-4), float64(boxH-4), color.Black)
 
 	// Draw input text
-	drawText(screen, s.Username, boxX+10, boxY+30, color.White)
+	drawText(screen, *username, boxX+10, boxY+30, color.White)
 
 	// Draw blinking cursor
 	if s.CursorBlink {
-		cursorX := boxX + 10 + len(s.Username)*7 // Adjust based on font size
+		cursorX := boxX + 10 + len(*username)*7 // Adjust based on font size
 		ebitenutil.DrawRect(screen, float64(cursorX), float64(boxY+10), 2, float64(boxH-20), color.White)
 	}
 	// Draw connect button
